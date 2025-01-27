@@ -11,8 +11,6 @@ import MusicSearch from "@/components/Search/page";
 import mediaQuery from "@/utils/mediaQuery";
 import BottomNavigation from "@/components/BottomNavigation/page";
 import SnowfallBackground from "@/components/Snow/page";
-
-import Live2DViewer from "@/components/Live2DViewer/page";
 import Utils from "@/components/Utils/page";
 import {
   UserOutlined,
@@ -111,7 +109,6 @@ export default function HomePage() {
   return (
     <AudioProvider>
       <SnowfallBackground />
-      {!isMobile && <Live2DViewer />}
       <div
         style={{
           margin: "20px",
