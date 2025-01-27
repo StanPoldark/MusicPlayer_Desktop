@@ -7,12 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri": "tauri"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.2",
     "@reduxjs/toolkit": "^2.3.0",
+    "@tauri-apps/plugin-dialog": "^2.2.0",
+    "@tauri-apps/plugin-fs": "^2.2.0",
     "antd": "^5.22.2",
     "axios": "^1.7.7",
     "ioredis": "^5.4.1",
@@ -32,6 +33,7 @@
     "vanilla-tilt": "^1.8.1"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^2.2.0",
     "@tauri-apps/cli": "^2.2.7",
     "@types/lodash": "^4.17.13",
     "@types/node": "^20",

@@ -1,5 +1,13 @@
 // src/types/music.ts
 // 定义单个音乐条目的类型
+
+
+export interface MusicFile {
+  path: string;
+  name: string;
+  isPlaying: boolean;
+}
+
 export interface Track {
   name: string;
   id: number;

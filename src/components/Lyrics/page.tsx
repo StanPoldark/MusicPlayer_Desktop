@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAppSelector } from "@/hooks/hooks";
-import mediaQuery from "@/utils/mediaQuery"
+import mediaQuery from "@/utils/mediaQuery";
 
 // 定义歌词行接口
 interface LyricLine {
@@ -95,7 +95,24 @@ const LyricsDisplay: React.FC = () => {
   // 没有歌词或没有曲目
   if (!currentTrack?.lyric) {
     return (
-      <div className="text-center text-gray-500 p-4">No lyrics available</div>
+      <div>
+        <div
+          className="flex flex-row justify-around mt-4"
+          style={{ textAlign: "center", marginBottom: 20 }}
+        >
+          <span className="align-text-center text-xl font-bold text-white">
+            {currentTrack.name}
+          </span>
+        </div>
+        <div
+          className="text-center text-gray-500 p-4 flex flex-col items-center justify-center"
+          style={{
+            height: isMobile ? "26rem" : "26rem",
+          }}
+        >
+          No lyrics available
+        </div>
+      </div>
     );
   }
 
@@ -114,8 +131,7 @@ const LyricsDisplay: React.FC = () => {
         className="lyrics-container overflow-y-auto text-center p-4 text-white"
         style={{
           scrollBehavior: "smooth",
-          maxHeight: isMobile ? "26rem" :"26rem",
-
+          maxHeight: isMobile ? "26rem" : "26rem",
         }}
       >
         {parsedLyrics.map((lyric, index) => (
@@ -129,7 +145,7 @@ const LyricsDisplay: React.FC = () => {
                 : "text-gray-300 text-base"
             }
           `}
-          style={{fontSize: isMobile? "1rem": "1.5rem"}}
+            style={{ fontSize: isMobile ? "1rem" : "1.5rem" }}
           >
             {lyric.text}
           </div>

@@ -12,6 +12,7 @@ import mediaQuery from "@/utils/mediaQuery";
 import BottomNavigation from "@/components/BottomNavigation/page";
 import SnowfallBackground from "@/components/Snow/page";
 import Utils from "@/components/Utils/page";
+import MusicScan from '@/components/ScanFiles/page';
 import {
   UserOutlined,
   SearchOutlined,
@@ -56,7 +57,7 @@ export default function HomePage() {
       icon: <ControlOutlined />,
       label: "Function",
       component: <Utils />,
-    },
+    }
   ];
 
   const collapseItems = [
@@ -94,6 +95,16 @@ export default function HomePage() {
           },
         ]
       : []),
+      {
+        key: "scanfile",
+        label: "Scan List",
+        children: (
+          <div className="box" style={{ height: "100%", width: "100%" }}>
+            <MusicScan />
+          </div>
+        ),
+        style: { height: "100%", color: "white" },
+      },
   ];
 
   // Close the drawer
