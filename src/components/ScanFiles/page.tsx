@@ -154,7 +154,7 @@ const MusicScan = () => {
         size="small"
         loading={isLoading}
         dataSource={musicFiles}
-        renderItem={(file, index) => (
+        renderItem={(file) => (
           <List.Item
             key={file.path} // 使用唯一路径作为key
             style={{

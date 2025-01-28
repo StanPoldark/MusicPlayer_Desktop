@@ -1,9 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::path::PathBuf;
-use tauri::Manager;
-
 #[tauri::command]
 async fn scan_music_dir(path: String) -> Result<Vec<String>, String> {
     let mut music_files = Vec::new();
