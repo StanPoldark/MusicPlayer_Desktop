@@ -1,93 +1,136 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open, stat } from "@tauri-apps/plugin-fs";
+import { open as fsOpen, stat } from "@tauri-apps/plugin-fs";
 import { MusicFile } from "@/redux/modules/types";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 import { useAppDispatch } from "@/hooks/hooks";
-import { List } from "antd";
-import "@/components/Login/index.scss";
-import {
-  setCurrentTrack,
-  addTrackToPlaylist,
-} from "@/redux/modules/musicPlayer/reducer";
-
+import { List, message } from "antd";
+import { setCurrentTrack,addTrackToPlaylist } from "@/redux/modules/musicPlayer/reducer";
 import { Track } from "@/redux/modules/types";
 
+// 类型增强
+interface CachedTrack {
+  url: string;
+  lastAccessed: number;
+}
+
 const MusicScan = () => {
-  const [musicFiles, setMusicFiles] = useState<MusicFile[]>([]);
+  const [musicFiles, setMusicFiles] = useState<MusicFile[]>(([]));
+  const [isLoading, setIsLoading] = useState(false);
   const dispatch = useAppDispatch();
-  const scanMusicDirectory = async () => {
+  
+  // 使用Ref缓存Blob URL并自动清理
+  const blobCache = useRef<Map<string, CachedTrack>>(new Map());
+  const cleanupTimer = useRef<NodeJS.Timeout>();
+
+  // 自动清理过期的Blob URL
+  useEffect(() => {
+    const cleanup = () => {
+      const now = Date.now();
+      for (const [path, entry] of blobCache.current) {
+        if (now - entry.lastAccessed > 60 * 60 * 1000) { // 1小时缓存
+          URL.revokeObjectURL(entry.url);
+          blobCache.current.delete(path);
+        }
+      }
+    };
+    
+    cleanupTimer.current = setInterval(cleanup, 10 * 60 * 1000); // 每10分钟清理
+    return () => clearInterval(cleanupTimer.current);
+  }, []);
+
+  const scanMusicDirectory = useCallback(async () => {
     try {
-      // 打开文件夹选择对话框
-      const selectedDirectory = await openDialog({
-        directory: true, // 允许选择文件夹
+      setIsLoading(true);
+      const selectedDirectory = await dialogOpen({
+        directory: true,
       });
 
-      // 如果没有选择文件夹，则返回
       if (!selectedDirectory) return;
 
-      // 获取目录下的所有音乐文件路径
       const musicPaths = (await invoke("scan_music_dir", {
         path: selectedDirectory,
       })) as string[];
 
-      const files: MusicFile[] = musicPaths.map((path) => ({
+      // 路径标准化和去重
+      const uniquePaths = Array.from(new Set(musicPaths));
+      const files: MusicFile[] = uniquePaths.map((path) => ({
         path,
-        name: path.split("/").pop() || path,
+        name: path.split(/[\\/]/).pop() || path,
         isPlaying: false,
       }));
 
       setMusicFiles(files);
     } catch (error) {
       console.error("Error scanning music directory:", error);
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, []);
 
-  const convertToTrack = (music: MusicFile, url: string): Track => {
-    const fileName = music.path.split("\\").pop() || "";
+  const convertToTrack = useCallback((music: MusicFile, url: string): Track => {
+    const fileName = music.name;
     return {
       name: fileName,
-      id: null, // 使用随机字符串作为唯一 ID
-      ar: [], // 假设没有艺术家信息，设置为空数组
-      picUrl: "", // 假设没有专辑封面 URL，设置为空字符串
+      id: null, // 使用文件路径作为唯一标识
+      ar: ["本地歌手"], // 更合理的默认值
+      picUrl: "default-album-cover.jpg", // 本地默认封面
       url: url,
+      duration: 0, // 根据实际情况补充
     };
-  };
+  }, []);
 
-  const playMusic = async (music: MusicFile) => {
+  const playMusic = useCallback(async (music: MusicFile) => {
     try {
-      // 获取文件信息
+      // 缓存检查
+      if (blobCache.current.has(music.path)) {
+        const cached = blobCache.current.get(music.path)!;
+        cached.lastAccessed = Date.now();
+        dispatch(setCurrentTrack(convertToTrack(music, cached.url)));
+        return;
+      }
+
       const fileInfo = await stat(music.path);
-      const fileSize = fileInfo.size;
+      if (fileInfo.size > 100 * 1024 * 1024) { // 100MB大小限制
+        message.warning("文件过大，暂不支持播放");
+        return;
+      }
 
-      // 打开文件
-      const file = await open(music.path, { read: true });
-
-      // 创建缓冲区并读取文件
-      const buffer = new Uint8Array(fileSize);
+      const file = await fsOpen(music.path, { read: true });
+      const buffer = new Uint8Array(fileInfo.size);
       await file.read(buffer);
       await file.close();
 
-      // 创建 Blob URL
-      const blob = new Blob([buffer], { type: "audio/mpeg" });
+      const blob = new Blob([buffer], { type: "audio/*" }); // 更通用的类型
       const url = URL.createObjectURL(blob);
-
-      const track = convertToTrack(music, url);
-      console.log(track);
-
+      
+      // 更新缓存
+      blobCache.current.set(music.path, {
+        url,
+        lastAccessed: Date.now()
+      });
+      const track:Track = convertToTrack(music, url)
       dispatch(setCurrentTrack(track));
-
-      // 更新状态
-      setMusicFiles((prev) =>
-        prev.map((track) => ({
+      dispatch(addTrackToPlaylist({ from: "play", track: track }));
+      setMusicFiles(prev => 
+        prev.map(track => ({
           ...track,
-          isPlaying: track.path === music.path,
+          isPlaying: track.path === music.path
         }))
       );
     } catch (error) {
       console.error("Error playing music:", error);
+      message.error("播放失败");
     }
-  };
+  }, [dispatch, convertToTrack]);
+
+  // 组件卸载时清理所有Blob URL
+  useEffect(() => {
+    return () => {
+      blobCache.current.forEach(entry => URL.revokeObjectURL(entry.url));
+      blobCache.current.clear();
+    };
+  }, []);
 
   return (
     <div
@@ -102,24 +145,28 @@ const MusicScan = () => {
           className={`Lbutton h-12 flex items-center justify-center transition-all duration-300 hover:scale-105`}
           style={{margin:0,width: "100%"}}
         >
-          扫描音乐目录
+         <span>扫描音乐目录</span> 
         </button>
       </div>
 
-      <List bordered size="small">
-        {musicFiles.map((file, index) => (
+      <List
+        bordered
+        size="small"
+        loading={isLoading}
+        dataSource={musicFiles}
+        renderItem={(file, index) => (
           <List.Item
-            key={index}
+            key={file.path} // 使用唯一路径作为key
             style={{
               cursor: "pointer",
               color: "white",
             }}
             onClick={() => playMusic(file)}
           >
-            <span>{file.path.split("\\").pop() || ""}</span>
+            <span>🎵 {file.name}</span>
           </List.Item>
-        ))}
-      </List>
+        )}
+      />
     </div>
   );
 };

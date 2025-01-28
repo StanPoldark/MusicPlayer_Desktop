@@ -119,21 +119,26 @@ const LyricsDisplay: React.FC = () => {
   return (
     <div className="relative w-full" style={{ width: "100%", height: "100%" }}>
       <div
-        className="flex flex-row justify-around mt-4"
-        style={{ textAlign: "center", marginBottom: 20 }}
-      >
-        <span className="align-text-center text-xl font-bold text-white">
-          {currentTrack.name}
-        </span>
-      </div>
-      <div
         ref={lyricsContainerRef}
-        className="lyrics-container overflow-y-auto text-center p-4 text-white"
+        className="overflow-y-auto text-center p-4 text-white"
         style={{
           scrollBehavior: "smooth",
-          maxHeight: isMobile ? "26rem" : "26rem",
+          height: "100%",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
         }}
       >
+        <div
+          className="flex flex-row justify-around mt-4"
+          style={{ textAlign: "center", marginBottom: 20 }}
+        >
+          <span className="align-text-center text-xl font-bold text-white">
+            {currentTrack.name}
+          </span>
+        </div>
         {parsedLyrics.map((lyric, index) => (
           <div
             key={index}

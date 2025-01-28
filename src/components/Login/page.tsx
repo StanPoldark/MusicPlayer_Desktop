@@ -299,7 +299,7 @@ const Login = () => {
               正在生成二维码...
             </div>
           ) : (
-            <img
+            <Image
               src={qrImg}
               alt="QR Code"
               className="mx-auto w-48 h-48 object-contain"
