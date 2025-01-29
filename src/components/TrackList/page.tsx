@@ -43,6 +43,12 @@ type FetchError = {
   code?: number;
 };
 
+interface AudioResponse {
+  data: number[];  // Changed from Uint8Array to number[] as Tauri serializes to array
+  content_type: string;
+  content_length?: string;
+}
+
 const TrackList: React.FC = () => {
   const dispatch = useAppDispatch();
   // 从 Redux 中获取订阅的歌单和创建的歌单
@@ -158,10 +164,7 @@ const TrackList: React.FC = () => {
       const songData = response.data.find((data: any) => data.id === song.id);
 
       // 如果 URL 存在并且有效（非 null 或 404），使用它，否则使用空字符串
-      const songUrl =
-        songData && songData.url
-          ? `/api/proxy/music?url=${encodeURIComponent(songData.url)}`
-          : "";
+      const songUrl = songData && songData.url ? songData.url : "";
 
       return {
         ...song,
@@ -227,44 +230,69 @@ const TrackList: React.FC = () => {
   // 处理歌曲点击事件
   const handleSongClick = useCallback(
     async (track: Track) => {
-      // Prevent fetching if loading tracks
       if (isLoadingTracks) return;
-
-      // Check if the track is already in the storedTracks array
+  
       const existingTrack = storedTracks.find((t) => t.id === track.id);
-
       if (existingTrack) {
-        // Track already exists, dispatch it without re-fetching
+        if (existingTrack.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(existingTrack.url);
+        }
         dispatch(setCurrentTrack(existingTrack));
         dispatch(addTrackToPlaylist({ from: "play", track: existingTrack }));
         return;
       }
-
+  
       try {
-        // Set loading state
         setIsLoadingTracks(true);
-
-        // Check song availability
+  
+        // 检查歌曲可用性
         const songAvailableData = await checkSong(track.id);
-        const songLyric = await getlyric(track.id);
-
         if (!songAvailableData.success) {
-          alert(
-            "Sorry, this song is not available due to copyright restrictions."
-          );
+          message.error("Sorry, this song is not available due to copyright restrictions.");
           return;
         }
+  
+        // 获取歌词数据
+        const songLyric = await getlyric(track.id);
+  
+        // 调用 Tauri 后端代理音频请求
+        const { invoke } = await import('@tauri-apps/api/core');
+        
+        // 获取音频数据
+        const response = await invoke<AudioResponse>('proxy_audio', {
+          url: track.url,
+        });
+  
+        // 验证响应
+        if (!response.data || response.data.length === 0) {
+          throw new Error('Invalid audio data received');
+        }
+  
+        // 将数字数组转换为 Uint8Array
+        const uint8Array = new Uint8Array(response.data);
+        
+        // 创建 Blob
+        const blob = new Blob([uint8Array], { 
+          type: response.content_type || 'audio/mpeg' 
+        });
+  
+        // 创建 Blob URL
+        const url = URL.createObjectURL(blob);
+  
+        // 更新 Track 数据
         const updatedTrack = {
           ...track,
+          url,
           lyric: songLyric.lrc.lyric,
         };
-
-        // Store the updated track in the state
+  
+        // 存储到状态中
         setStoredTracks((prevTracks) => [...prevTracks, updatedTrack]);
-
-        // Dispatch the updated track
+  
+        // 分发 Track 数据
         dispatch(setCurrentTrack(updatedTrack));
         dispatch(addTrackToPlaylist({ from: "play", track: updatedTrack }));
+        
       } catch (error) {
         console.error("Error fetching song URL:", error);
         message.error("Failed to load song");
@@ -272,8 +300,21 @@ const TrackList: React.FC = () => {
         setIsLoadingTracks(false);
       }
     },
-    [dispatch, isLoadingTracks, storedTracks] // Add storedTracks as a dependency
+    [dispatch, isLoadingTracks, storedTracks]
   );
+
+  useEffect(() => {
+    // Clean up the URL when the component unmounts or the track changes
+    return () => {
+      // Ensure all Blob URLs are revoked
+      storedTracks.forEach(track => {
+        if (track.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(track.url);
+        }
+      });
+    };
+  }, [storedTracks]);
+
 
   // 组件挂载时获取用户歌单列表
   useEffect(() => {

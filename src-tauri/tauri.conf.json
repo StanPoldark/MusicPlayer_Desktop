@@ -6,7 +6,9 @@
   "build": {
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../out"
+
   },
   "app": {
     "windows": [
@@ -20,6 +22,7 @@
     ],
     "security": {
       "csp": null
+      
     }
   },
   "bundle": {
