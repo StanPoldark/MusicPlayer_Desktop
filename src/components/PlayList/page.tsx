@@ -1,95 +1,139 @@
-import React, { useState } from 'react';
+import React from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { List, Button } from 'antd';
-import { LucideTrash } from 'lucide-react';
+import { Trash } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from "@/hooks/hooks";
 import { 
   removeTrackFromPlaylist, 
-  reorderPlaylist, 
+  reorderPlaylist,
 } from '@/redux/modules/musicPlayer/reducer';
 import { Track } from '@/redux/modules/types';
-import "./index.scss";
 
-// 定义PlaylistManager组件
-const PlaylistManager: React.FC = () => {
-  // 获取dispatch函数
+interface SortableItemProps {
+  track: Track;
+  onRemove: (trackId: number) => void;
+}
+
+const SortableItem: React.FC<SortableItemProps> = ({ track, onRemove }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: track.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <List.Item
+        className="cursor-move p-2"
+        style={{ paddingInlineStart: 20 }}
+        extra={
+          <Button 
+            type="link" 
+            onClick={() => onRemove(track.id)} 
+            icon={<Trash className="w-4 h-4" />}
+            className="text-neutral-400 hover:text-red-500"
+            aria-label="Remove from playlist"
+          />
+        }
+      >
+        <div {...listeners} className="w-full">
+          <List.Item.Meta
+            title={
+              <p className="text-white m-0 text-base">
+                {track.name}
+              </p>
+            }
+          />
+        </div>
+      </List.Item>
+    </div>
+  );
+};
+
+const PlaylistManager = () => {
   const dispatch = useAppDispatch();
-  // 从redux中获取playlist
   const { playlist } = useAppSelector(state => state.musicPlayer);
-  // 定义拖拽的track
-  const [draggedItem, setDraggedItem] = useState<Track | null>(null);
+  const trackIds = playlist.map(track => track.id);
 
-  // 拖拽开始时设置拖拽的track
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, track: Track) => {
-    setDraggedItem(track);
-    e.dataTransfer?.setData('text/plain', track.id.toString());
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    
+    if (active.id !== over.id) {
+      const oldIndex = playlist.findIndex(t => t.id === active.id);
+      const newIndex = playlist.findIndex(t => t.id === over.id);
+      
+      dispatch(reorderPlaylist({
+        sourceIndex: oldIndex,
+        destinationIndex: newIndex
+      }));
+    }
   };
 
-  // 拖拽时阻止默认行为
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
-
-  // 拖拽结束时更新playlist
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetTrack: Track) => {
-    e.preventDefault();
-    if (!draggedItem) return;
-
-    const updatedPlaylist = [...playlist];
-    const draggedIndex = updatedPlaylist.findIndex(t => t.id === draggedItem.id);
-    const targetIndex = updatedPlaylist.findIndex(t => t.id === targetTrack.id);
-
-    // Remove dragged item
-    updatedPlaylist.splice(draggedIndex, 1);
-    // Insert at new position
-    updatedPlaylist.splice(targetIndex, 0, draggedItem);
-
-    dispatch(reorderPlaylist({
-      sourceIndex: draggedIndex,
-      destinationIndex: targetIndex
-    }));
-  };
-
-  // 移除track
   const handleRemoveTrack = (trackId: number) => {
     dispatch(removeTrackFromPlaylist(trackId));
   };
 
   return (
-    <div className="flex-1 playlist-manager p-4 bg-transparent rounded-lg " style={{ width: '100%', height: '100%'}}>
+    <div className="flex-1 p-4 bg-transparent rounded-lg w-full h-full">
       <h2 className="text-white text-xl mb-4">Playlist</h2>
       
       {playlist.length === 0 ? (
         <p className="text-neutral-500 text-center">Your playlist is empty</p>
       ) : (
-        <List
-          itemLayout="horizontal"
-          dataSource={playlist}
-          renderItem={(track) => (
-            <List.Item
-              key={track.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, track)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, track)}
-              className={`transition-colors duration-200 cursor-move p-2`}
-              style={{
-                cursor: "pointer",
-                paddingInlineStart: 20,
-              }}
-            >
-              <List.Item.Meta
-                title={<p className="text-white" style={{marginBottom:0,fontSize:"1rem"}}>{track.name}</p>}
-              />
-              <Button 
-                type="link" 
-                onClick={() => handleRemoveTrack(track.id)} 
-                icon={<LucideTrash size={16} />} 
-                className="text-neutral-400 hover:text-red-500"
-                aria-label="Remove from playlist"
-              />
-            </List.Item>
-          )}
-        />
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          modifiers={[restrictToVerticalAxis]}
+        >
+          <SortableContext 
+            items={trackIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <List
+              itemLayout="horizontal"
+              dataSource={playlist}
+              renderItem={(track) => (
+                <SortableItem 
+                  key={track.id} 
+                  track={track}
+                  onRemove={handleRemoveTrack}
+                />
+              )}
+            />
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   );

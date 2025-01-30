@@ -17,12 +17,12 @@
         "width": 1280,
         "height": 720,
         "maximized": true,
-        "resizable": true
+        "resizable": true,
+        "dragDropEnabled":true
       }
     ],
     "security": {
       "csp": null
-      
     }
   },
   "bundle": {

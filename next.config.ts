@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   output: 'export',
   images: {
-    domains: ["p1.music.126.net", "p2.music.126.net"], // 添加允许的域名
+    unoptimized: true
   },
 };
 

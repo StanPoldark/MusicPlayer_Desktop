@@ -14,6 +14,22 @@ interface CachedTrack {
   lastAccessed: number;
 }
 
+
+const generateFileId = (path: string): number => {
+  let hash = 0;
+  const prime = 5381;
+  
+  for (let i = 0; i < path.length; i++) {
+    hash = (hash * prime) ^ path.charCodeAt(i);
+    hash = hash >>> 0; // 确保无符号32位整数
+  }
+  
+  // 生成8位数字：取后8位并确保不为0开头
+  return (hash % 90000000) + 10000000;
+};
+
+
+
 const MusicScan = () => {
   const [musicFiles, setMusicFiles] = useState<MusicFile[]>(([]));
   const [isLoading, setIsLoading] = useState(false);
@@ -52,13 +68,17 @@ const MusicScan = () => {
         path: selectedDirectory,
       })) as string[];
 
-      // 路径标准化和去重
-      const uniquePaths = Array.from(new Set(musicPaths));
-      const files: MusicFile[] = uniquePaths.map((path) => ({
-        path,
-        name: path.split(/[\\/]/).pop() || path,
-        isPlaying: false,
-      }));
+      // 生成带唯一ID的文件列表
+      const files: MusicFile[] = musicPaths
+        .filter((path, index, self) => 
+          self.findIndex(p => p === path) === index
+        )
+        .map(path => ({
+          path,
+          name: path.split(/[\\/]/).pop() || path,
+          isPlaying: false,
+          id: generateFileId(path) // 生成稳定ID
+        }));
 
       setMusicFiles(files);
     } catch (error) {
@@ -68,17 +88,15 @@ const MusicScan = () => {
     }
   }, []);
 
-  const convertToTrack = useCallback((music: MusicFile, url: string): Track => {
-    const fileName = music.name;
-    return {
-      name: fileName,
-      id: null, // 使用文件路径作为唯一标识
-      ar: ["本地歌手"], // 更合理的默认值
-      picUrl: "default-album-cover.jpg", // 本地默认封面
-      url: url,
-      duration: 0, // 根据实际情况补充
-    };
-  }, []);
+  
+  const convertToTrack = useCallback((music: MusicFile, url: string): Track => ({
+    name: music.name,
+    id: music.id,
+    ar: ["本地歌手"],
+    picUrl: "default-album-cover.jpg",
+    url: url,
+    duration: 0,
+  }), []);
 
   const playMusic = useCallback(async (music: MusicFile) => {
     try {

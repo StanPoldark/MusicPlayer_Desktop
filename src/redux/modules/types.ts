@@ -3,10 +3,12 @@
 
 
 export interface MusicFile {
+  id: number; 
   path: string;
   name: string;
   isPlaying: boolean;
 }
+
 
 export interface Track {
   name: string;

@@ -44,7 +44,7 @@ type FetchError = {
 };
 
 interface AudioResponse {
-  data: number[];  // Changed from Uint8Array to number[] as Tauri serializes to array
+  data: number[]; // Changed from Uint8Array to number[] as Tauri serializes to array
   content_type: string;
   content_length?: string;
 }
@@ -227,11 +227,39 @@ const TrackList: React.FC = () => {
     [dispatch, trackLists, loadingPlaylistId]
   );
 
+  const proxySongWithUrl = async (track: Track) => {
+    // 调用 Tauri 后端代理音频请求
+    const { invoke } = await import("@tauri-apps/api/core");
+
+    // 获取音频数据
+    const response = await invoke<AudioResponse>("proxy_audio", {
+      url: track.url,
+    });
+
+    // 验证响应
+    if (!response.data || response.data.length === 0) {
+      throw new Error("Invalid audio data received");
+    }
+
+    // 将数字数组转换为 Uint8Array
+    const uint8Array = new Uint8Array(response.data);
+
+    // 创建 Blob
+    const blob = new Blob([uint8Array], {
+      type: response.content_type || "audio/mpeg",
+    });
+
+    // 创建 Blob URL
+    const url = URL.createObjectURL(blob);
+
+    return url;
+  };
+
   // 处理歌曲点击事件
   const handleSongClick = useCallback(
     async (track: Track) => {
       if (isLoadingTracks) return;
-  
+
       const existingTrack = storedTracks.find((t) => t.id === track.id);
       if (existingTrack) {
         if (existingTrack.url?.startsWith("blob:")) {
@@ -241,58 +269,37 @@ const TrackList: React.FC = () => {
         dispatch(addTrackToPlaylist({ from: "play", track: existingTrack }));
         return;
       }
-  
+
       try {
         setIsLoadingTracks(true);
-  
+
         // 检查歌曲可用性
         const songAvailableData = await checkSong(track.id);
         if (!songAvailableData.success) {
-          message.error("Sorry, this song is not available due to copyright restrictions.");
+          message.error(
+            "Sorry, this song is not available due to copyright restrictions."
+          );
           return;
         }
-  
+
         // 获取歌词数据
         const songLyric = await getlyric(track.id);
-  
-        // 调用 Tauri 后端代理音频请求
-        const { invoke } = await import('@tauri-apps/api/core');
-        
-        // 获取音频数据
-        const response = await invoke<AudioResponse>('proxy_audio', {
-          url: track.url,
-        });
-  
-        // 验证响应
-        if (!response.data || response.data.length === 0) {
-          throw new Error('Invalid audio data received');
-        }
-  
-        // 将数字数组转换为 Uint8Array
-        const uint8Array = new Uint8Array(response.data);
-        
-        // 创建 Blob
-        const blob = new Blob([uint8Array], { 
-          type: response.content_type || 'audio/mpeg' 
-        });
-  
-        // 创建 Blob URL
-        const url = URL.createObjectURL(blob);
-  
+
+        const url = await proxySongWithUrl(track);
+
         // 更新 Track 数据
         const updatedTrack = {
           ...track,
           url,
           lyric: songLyric.lrc.lyric,
         };
-  
+
         // 存储到状态中
         setStoredTracks((prevTracks) => [...prevTracks, updatedTrack]);
-  
+
         // 分发 Track 数据
         dispatch(setCurrentTrack(updatedTrack));
         dispatch(addTrackToPlaylist({ from: "play", track: updatedTrack }));
-        
       } catch (error) {
         console.error("Error fetching song URL:", error);
         message.error("Failed to load song");
@@ -307,14 +314,13 @@ const TrackList: React.FC = () => {
     // Clean up the URL when the component unmounts or the track changes
     return () => {
       // Ensure all Blob URLs are revoked
-      storedTracks.forEach(track => {
+      storedTracks.forEach((track) => {
         if (track.url?.startsWith("blob:")) {
           URL.revokeObjectURL(track.url);
         }
       });
     };
   }, [storedTracks]);
-
 
   // 组件挂载时获取用户歌单列表
   useEffect(() => {
@@ -371,9 +377,12 @@ const TrackList: React.FC = () => {
         }
 
         const songLyric = await getlyric(track.id);
+        const url = await proxySongWithUrl(track);
 
+        // 更新 Track 数据
         const updatedTrack = {
           ...track,
+          url,
           lyric: songLyric.lrc.lyric,
         };
 
