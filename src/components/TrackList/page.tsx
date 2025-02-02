@@ -298,7 +298,7 @@ const TrackList: React.FC = () => {
         const updatedTrack = {
           ...track,
           url,
-          lyric: songLyric.lrc.lyric,
+          lyric: songLyric.uncollected ?  "" : songLyric.lrc.lyric,
         };
 
         setStoredTracks((prevTracks) => [...prevTracks, updatedTrack]);
