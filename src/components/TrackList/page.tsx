@@ -24,6 +24,7 @@ import {
   SimplifiedPlaylist,
   Track,
   TrackResponse,
+  AudioResponse
 } from "@/redux/modules/types";
 import {
   SwitcherOutlined,
@@ -43,11 +44,6 @@ type FetchError = {
   code?: number;
 };
 
-interface AudioResponse {
-  data: number[]; // Changed from Uint8Array to number[] as Tauri serializes to array
-  content_type: string;
-  content_length?: string;
-}
 
 const TrackList: React.FC = () => {
   const dispatch = useAppDispatch();

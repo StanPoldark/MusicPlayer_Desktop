@@ -10,6 +10,14 @@ export interface MusicFile {
 }
 
 
+export interface AudioResponse {
+  data: number[]; // Changed from Uint8Array to number[] as Tauri serializes to array
+  content_type: string;
+  content_length?: string;
+}
+
+
+
 export interface Track {
   name: string;
   id: number;
