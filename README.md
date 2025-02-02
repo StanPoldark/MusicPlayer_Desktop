@@ -48,6 +48,6 @@ Currently, only QR code login is supported. The button for captcha login is hidd
 
 ## Future Enhancements:
 
-Expanding functionalities based on the API.
-~~Creating a PC client using Tauri to support local music playback.
-Developing a mobile version for better accessibility.
+- Expanding functionalities based on the API.  
+- ~~Creating a PC client using Tauri to support local music playback.  ~~
+- Developing a mobile version for better accessibility.  
