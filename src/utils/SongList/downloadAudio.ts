@@ -1,4 +1,3 @@
-import { getSongUrls } from "@/app/api/music";
 import {
   Track,
   AudioResponse
@@ -39,7 +38,7 @@ import {
 
   // 检查 audioId 的有效性
   if (typeof audioId === "number" && audioId > 0) {
-        var url = await proxySongWithUrl(audioInfo);
+        const url = await proxySongWithUrl(audioInfo);
         const a = document.createElement("a");
         a.href = url;
         a.download = `${audioInfo.name}.mp3`; // 文件名格式
