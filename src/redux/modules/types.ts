@@ -32,6 +32,10 @@ export interface TrackResponse {
   songs: Track[];
 }
 
+export interface CloudResponse {
+  data: Track[];
+}
+
 export interface PlayerState {
   currentTrack: Track | null;
   isPlaying: boolean;
