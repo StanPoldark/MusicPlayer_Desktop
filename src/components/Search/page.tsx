@@ -8,7 +8,7 @@ import {
   setCurrentTrack,
   addTrackToPlaylist,
 } from "@/redux/modules/musicPlayer/reducer";
-import { Track } from "@/redux/modules/types";
+import { Track ,AudioResponse} from "@/redux/modules/types";
 import "./index.scss";
 import DownloadAudio from "@/utils/SongList/downloadAudio"
 import { VerticalAlignBottomOutlined } from "@ant-design/icons";
@@ -73,111 +73,115 @@ const MusicSearch: React.FC = () => {
 
   // 获取歌曲的 URL
   const getSongsWithUrls = async (songList: any[]) => {
-    // 获取所有歌曲的 ID
     const songIds = songList.map((song) => song.id);
-    
-    // 调用 getSongUrls 方法获取歌曲数据
     const response = await getSongUrls(songIds);
-    
-    // 检查返回的数据是否有效
+
     if (response.code !== 200 || !response.data) {
-      throw new Error('Failed to fetch song URLs');
+      throw new Error("Failed to fetch song URLs");
     }
-    
-    // 将 URL 添加到歌曲对象中
+
     const updatedSongList = songList.map((song) => {
       const songData = response.data.find((data: any) => data.id === song.id);
-    
-      // 如果 URL 存在并且有效（非 null 或 404），使用它，否则使用空字符串
-      const songUrl = songData && songData.url 
-      ? `/api/proxy/music?url=${encodeURIComponent(songData.url)}`
-      : ''; 
-    
+      const songUrl = songData && songData.url ? songData.url : "";
+
       return {
         ...song,
         url: songUrl,
         time: songData?.time || 0,
       };
     });
-    
+
     return updatedSongList;
   };
+
 
   // 处理歌曲点击事件
   const handleSongClick = useCallback(
     async (track: Track) => {
-      // 检查已存储歌曲中是否存在当前歌曲
       const existingTrack = storedTracks.find((t) => t.id === track.id);
-
-      // 如果存在，则设置当前歌曲并添加到播放列表
       if (existingTrack) {
+        if (existingTrack.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(existingTrack.url);
+        }
         dispatch(setCurrentTrack(existingTrack));
         dispatch(addTrackToPlaylist({ from: "play", track: existingTrack }));
         return;
       }
 
       try {
-        // 调用 checkSong 方法检查歌曲是否可用
         const songAvailableData = await checkSong(track.id);
-        // 调用 getlyric 方法获取歌曲的歌词
-        const songLyric = await getlyric(track.id);
-
-        // 如果歌曲不可用，则提示用户
         if (!songAvailableData.success) {
-          alert("抱歉，由于版权限制，此歌曲不可播放")
-          message.error("抱歉，由于版权限制，此歌曲不可播放");
+          message.error(
+            "Sorry, this song is not available due to copyright restrictions."
+          );
           return;
         }
-        // 更新歌曲对象
+
+        const songLyric = await getlyric(track.id);
+        const url = await proxySongWithUrl(track);
+
         const updatedTrack = {
           ...track,
-          lyric: songLyric.lrc.lyric,
+          url,
+          lyric: songLyric.uncollected ?  "" : songLyric.lrc.lyric,
         };
 
-        // 将更新后的歌曲对象添加到已存储歌曲中
         setStoredTracks((prevTracks) => [...prevTracks, updatedTrack]);
-
-        // 设置当前歌曲并添加到播放列表
         dispatch(setCurrentTrack(updatedTrack));
         dispatch(addTrackToPlaylist({ from: "play", track: updatedTrack }));
       } catch (error) {
-        // 如果获取歌曲URL出错，则打印错误信息并提示用户
-        console.error("获取歌曲URL错误:", error);
-        message.error("加载歌曲失败");
-      }
+        console.error("Error fetching song URL:", error);
+        message.error("Failed to load song");
+      } 
     },
     [dispatch, storedTracks]
   );
 
+
+    // Proxy song URL
+    const proxySongWithUrl = async (track: Track) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const response = await invoke<AudioResponse>("proxy_audio", {
+        url: track.url,
+      });
+  
+      if (!response.data || response.data.length === 0) {
+        throw new Error("Invalid audio data received");
+      }
+  
+      const uint8Array = new Uint8Array(response.data);
+      const blob = new Blob([uint8Array], {
+        type: response.content_type || "audio/mpeg",
+      });
+      return URL.createObjectURL(blob);
+    };
+    
   // 处理添加到播放列表事件
   const handleAddToPlaylist = useCallback(
     async (track: Track) => {
       try {
-        // 调用 checkSong 方法检查歌曲是否可用
         const songAvailableData = await checkSong(track.id);
-
-        // 如果歌曲不可用，则提示用户
         if (!songAvailableData.success) {
-          alert("抱歉，由于版权限制，此歌曲不可添加")
-          message.error("抱歉，由于版权限制，此歌曲不可添加");
+          message.error(
+            "Sorry, this song is not available due to copyright restrictions."
+          );
           return;
         }
 
-        // 调用 getlyric 方法获取歌曲的歌词
         const songLyric = await getlyric(track.id);
-        // 更新歌曲对象
+        const url = await proxySongWithUrl(track);
+
         const updatedTrack = {
           ...track,
+          url,
           lyric: songLyric.lrc.lyric,
         };
 
-        // 添加歌曲到播放列表
         dispatch(addTrackToPlaylist({ from: "add", track: updatedTrack }));
-        message.success(`已添加 ${track.name} 到播放列表`);
+        message.success(`Added ${track.name} to playlist`);
       } catch (error) {
-        // 如果添加歌曲到播放列表出错，则打印错误信息并提示用户
-        console.error("添加歌曲到播放列表错误:", error);
-        message.error("添加歌曲失败");
+        console.error("Error adding track to playlist:", error);
+        message.error("Failed to add track to playlist");
       }
     },
     [dispatch]
@@ -209,7 +213,7 @@ const MusicSearch: React.FC = () => {
         </div>
       ) : (
         <List
-          className="trackList"
+          className=""
           itemLayout="horizontal"
           dataSource={searchResults}
           locale={{ emptyText: "暂无搜索结果" }}
