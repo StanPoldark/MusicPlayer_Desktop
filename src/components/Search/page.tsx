@@ -2,7 +2,7 @@
 import React, { useState, useCallback } from "react";
 import { useAppDispatch } from "@/hooks/hooks";
 import { search, getSongUrls, checkSong, getlyric } from "@/app/api/music";
-import { List, Input, Spin, message } from "antd";
+import { List, Input, Spin } from "antd";
 import { LucidePlus, Search as SearchIcon } from "lucide-react";
 import {
   setCurrentTrack,
@@ -30,7 +30,7 @@ const MusicSearch: React.FC = () => {
   const handleSearch = async () => {
     // 如果搜索关键词为空，则提示用户输入搜索关键词
     if (!searchTerm.trim()) {
-      message.warning("请输入搜索关键词");
+      alert("请输入搜索关键词")
       return;
     }
 
@@ -57,13 +57,12 @@ const MusicSearch: React.FC = () => {
         setSearchResults(updateTracks);
       } else {
         // 如果搜索结果不存在，则提示用户未找到结果
-        message.error("未找到结果");
+        alert("未找到结果")
         setSearchResults([]);
       }
     } catch (error) {
       // 如果搜索出错，则打印错误信息并提示用户搜索失败
       console.error("搜索错误:", error);
-      message.error("搜索失败");
       setSearchResults([]);
     } finally {
       // 设置加载状态为 false
@@ -111,9 +110,7 @@ const MusicSearch: React.FC = () => {
       try {
         const songAvailableData = await checkSong(track.id);
         if (!songAvailableData.success) {
-          message.error(
-            "Sorry, this song is not available due to copyright restrictions."
-          );
+          alert("Sorry, this song is not available due to copyright restrictions.")
           return;
         }
 
@@ -131,7 +128,6 @@ const MusicSearch: React.FC = () => {
         dispatch(addTrackToPlaylist({ from: "play", track: updatedTrack }));
       } catch (error) {
         console.error("Error fetching song URL:", error);
-        message.error("Failed to load song");
       } 
     },
     [dispatch, storedTracks]
@@ -162,9 +158,7 @@ const MusicSearch: React.FC = () => {
       try {
         const songAvailableData = await checkSong(track.id);
         if (!songAvailableData.success) {
-          message.error(
-            "Sorry, this song is not available due to copyright restrictions."
-          );
+          alert("Sorry, this song is not available due to copyright restrictions.")
           return;
         }
 
@@ -178,10 +172,8 @@ const MusicSearch: React.FC = () => {
         };
 
         dispatch(addTrackToPlaylist({ from: "add", track: updatedTrack }));
-        message.success(`Added ${track.name} to playlist`);
       } catch (error) {
         console.error("Error adding track to playlist:", error);
-        message.error("Failed to add track to playlist");
       }
     },
     [dispatch]
